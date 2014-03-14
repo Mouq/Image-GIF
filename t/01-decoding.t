@@ -3,9 +3,10 @@ use Image::GIF;
 plan *;
 
 for dir 't/gifs' {
+    my Image::GIF $gif;
     ok try {
         my $f = .open;
-        decode-gif $f;
+        $gif = decode-gif $f;
         $f.close;
     }, "GIF {.basename} decoded successfully";
 }

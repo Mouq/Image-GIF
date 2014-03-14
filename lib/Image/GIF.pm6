@@ -36,9 +36,9 @@ class Image::GIF {
     method !decode-gif (Buf $b --> Image::GIF) {
         my $pos = -1;
         my sub term:<get> () { $b[++$pos] }
+        my sub term:<sub-block> () { my$n=get; get xx $n; $n }
         my &bad-gif = ->$p?{
-            # $pos - 1 because we'll always get() before knowing
-            X::Image::GIF::Malformed.new(:pos($p // $pos - 1)).throw;
+            X::Image::GIF::Malformed.new(:pos($p // $pos)).fail;
         }
         # Header
         chrs(get xx 3) eq "GIF" or bad-gif;
@@ -69,25 +69,26 @@ class Image::GIF {
             when $.ver ge "89a" && 0x21 { # Extention
                 given get {
                     when 0xFE { # Comment
-                        repeat {} while get;
+                        repeat {} while sub-block;
                     }
                     when 0xFF { # Application
-                        get xx get;
-                        repeat {} while get;
+                        sub-block;
+                        repeat {} while sub-block;
                     }
                     when 0x01 { # Plain Text, no point supporting
-                        get xx get;
-                        repeat {} while get;
+                        sub-block;
+                        repeat {} while sub-block;
                     }
                     when 0xF9 { # Graphic Control
+                        $gce = True;
                         @!data[+*] //= Image::GIF::Block.new;
                         get;
                         my @packed = get.base(2).fmt("%08d").comb;
                         @!data[*-1].disposal-method = :2(@packed[3..5].join);
                         @!data[*-1].user-input = @packed[6];
                         @!data[*-1].delay = get+<8 + get;
-                        @!data[*-1].transparency-idx = @packed[7] && get;
-                        get and bad-gif;
+                        @!data[*-1].transparency-idx = @packed[7] * get;
+                        get != 0 and bad-gif;
                     }
                 }
             }
@@ -118,11 +119,12 @@ class Image::GIF {
                 #    || <{".**{$code-size+1}"}>
                 #]};
                 #say $code-size;
+                $gce = False;
             }
             when 0x3B { # Trailer
                 last
             }
-            default { note $pos; bad-gif }
+            default { note "$pos -- $b[$pos]"; bad-gif }
         }}
 
         self;
