@@ -40,10 +40,12 @@ class Image::GIF {
         my &bad-gif = ->$p?{
             X::Image::GIF::Malformed.new(:pos($p // $pos)).fail;
         }
+
         # Header
         chrs(get xx 3) eq "GIF" or bad-gif;
         ($!ver = chrs get xx 3) eq "87a"|"89a"
             or X::Image::GIF::Unknown.new(:version($!ver)).throw;
+
         # Logical Screen Descriptor
         $!width  = get + get+<8;
         $!height = get + get+<8;
@@ -59,11 +61,14 @@ class Image::GIF {
         }
         $!bg-color-idx = get;
         $!px-aspect-ratio = get;
+
         # Global Color Table
         if $gct-exists {
             @!color-table.push: (get*16**2 + get*16 + get).fmt("%06X")
                 for ^$gct-size;
         }
+
+        # Labeled blocks
         my $gce = False; # Was the last block a Graphic Control Extention
         loop { given get {
             when $.ver ge "89a" && 0x21 { # Extention
